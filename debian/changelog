@@ -1,3 +1,13 @@
+dpkg (1.19.0.5ubuntu2.1) bionic; urgency=medium
+
+  * Apply patch from upstream to add frontend locking (LP: #1796081):
+    - Add support for frontend locking. This makes it possible for frontends
+      using this new protocol, to safely lock the dpkg database w/o risk of
+      race conditions with other dpkg instances or frontends supporting the
+      same protocol.
+
+ -- Julian Andres Klode <juliank@ubuntu.com>  Thu, 04 Oct 2018 14:21:49 +0200
+
 dpkg (1.19.0.5ubuntu2) bionic; urgency=medium
 
   * Add Zstandard compression and decompression support for binary packages
