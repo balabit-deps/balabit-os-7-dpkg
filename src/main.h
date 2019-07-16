@@ -226,7 +226,53 @@ enum dep_check breakses_ok(struct pkginfo *pkg, struct varbuf *aemsgs);
 void deferred_remove(struct pkginfo *pkg);
 void deferred_configure(struct pkginfo *pkg);
 
-extern int sincenothing, dependtry;
+/*
+ * During the packages queue processing, the algorithm for deciding what to
+ * configure first is as follows:
+ *
+ * Loop through all packages doing a ‘try 1’ until we've been round and
+ * nothing has been done, then do ‘try 2’, and subsequent ones likewise.
+ * The incrementing of ‘dependtry’ is done by process_queue().
+ *
+ * Try 1:
+ *   Are all dependencies of this package done? If so, do it.
+ *   Are any of the dependencies missing or the wrong version?
+ *     If so, abort (unless --force-depends, in which case defer).
+ *   Will we need to configure a package we weren't given as an
+ *     argument? If so, abort ─ except if --force-configure-any,
+ *     in which case we add the package to the argument list.
+ *   If none of the above, defer the package.
+ *
+ * Try 2:
+ *   Find a cycle and break it (see above).
+ *   Do as for try 1.
+ *
+ * Try 3:
+ *   Start processing triggers if necessary.
+ *   Do as for try 2.
+ *
+ * Try 4:
+ *   Same as for try 3, but check trigger cycles even when deferring
+ *   processing due to unsatisfiable dependencies.
+ *
+ * Try 5 (only if --force-depends-version):
+ *   Same as for try 2, but don't mind version number in dependencies.
+ *
+ * Try 6 (only if --force-depends):
+ *   Do anyway.
+ */
+enum dependtry {
+	DEPEND_TRY_NORMAL = 1,
+	DEPEND_TRY_CYCLES = 2,
+	DEPEND_TRY_TRIGGERS = 3,
+	DEPEND_TRY_TRIGGERS_CYCLES = 4,
+	DEPEND_TRY_FORCE_DEPENDS_VERSION = 5,
+	DEPEND_TRY_FORCE_DEPENDS = 6,
+	DEPEND_TRY_LAST,
+};
+
+extern enum dependtry dependtry;
+extern int sincenothing;
 
 /* from cleanup.c (most of these are declared in archives.h) */
 
@@ -290,8 +336,10 @@ void dpkg_selabel_close(void);
 /* from trigproc.c */
 
 enum trigproc_type {
-	/** Opportunistic trigger processing. */
-	TRIGPROC_TRY,
+	/** Opportunistic deferred trigger processing. */
+	TRIGPROC_TRY_DEFERRED,
+	/** Opportunistic queued trigger processing. */
+	TRIGPROC_TRY_QUEUED,
 	/** Required trigger processing. */
 	TRIGPROC_REQUIRED,
 };

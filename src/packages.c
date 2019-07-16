@@ -50,7 +50,8 @@
 static struct pkginfo *progress_bytrigproc;
 static struct pkg_queue queue = PKG_QUEUE_INIT;
 
-int sincenothing = 0, dependtry = 1;
+enum dependtry dependtry = DEPEND_TRY_NORMAL;
+int sincenothing = 0;
 
 void
 enqueue_package(struct pkginfo *pkg)
@@ -232,17 +233,22 @@ void process_queue(void) {
        * trigger processing, w/o jumping into the next dependtry. */
       dependtry++;
       sincenothing = 0;
-      assert(dependtry <= 4);
+      if (dependtry >= DEPEND_TRY_LAST)
+        internerr("exceeded dependtry %d (sincenothing=%d; queue.length=%d)",
+                  dependtry, sincenothing, queue.length);
     } else if (sincenothing > queue.length * 2 + 2) {
-      /* XXX: This probably needs moving into a new dependtry instead. */
-      if (progress_bytrigproc && progress_bytrigproc->trigpend_head) {
+      if (dependtry >= DEPEND_TRY_TRIGGERS &&
+          progress_bytrigproc && progress_bytrigproc->trigpend_head) {
         enqueue_package(pkg);
         pkg = progress_bytrigproc;
+        progress_bytrigproc = NULL;
         action_todo = act_configure;
       } else {
         dependtry++;
         sincenothing = 0;
-        assert(dependtry <= 4);
+        if (dependtry >= DEPEND_TRY_LAST)
+          internerr("exceeded dependtry %d (sincenothing=%d, queue.length=%d)",
+                    dependtry, sincenothing, queue.length);
       }
     }
 
@@ -280,7 +286,7 @@ void process_queue(void) {
     case act_configure:
       /* Do whatever is most needed. */
       if (pkg->trigpend_head)
-        trigproc(pkg, TRIGPROC_REQUIRED);
+        trigproc(pkg, TRIGPROC_TRY_QUEUED);
       else
         deferred_configure(pkg);
       break;
@@ -342,6 +348,15 @@ enum found_status {
   FOUND_OK = 3,
 };
 
+static enum found_status
+found_forced_on(enum dependtry dependtry_forced)
+{
+  if (dependtry >= dependtry_forced)
+    return FOUND_FORCED;
+  else
+    return FOUND_DEFER;
+}
+
 /*
  * Return values:
  *   0: cannot be satisfied.
@@ -399,7 +414,7 @@ deppossi_ok_found(struct pkginfo *possdependee, struct pkginfo *requiredby,
                         pkg_name(possdependee, pnaw_always),
                         versiondescribe(&provider->version, vdew_nonambig));
           if (fc_dependsversion)
-            thisf = (dependtry >= 3) ? FOUND_FORCED : FOUND_DEFER;
+            thisf = found_forced_on(DEPEND_TRY_FORCE_DEPENDS_VERSION);
           debug(dbg_depcondetail, "      bad version");
           goto unsuitable;
         }
@@ -412,7 +427,7 @@ deppossi_ok_found(struct pkginfo *possdependee, struct pkginfo *requiredby,
                         versiondescribe(&possdependee->installed.version,
                                         vdew_nonambig));
           if (fc_dependsversion)
-            thisf = (dependtry >= 3) ? FOUND_FORCED : FOUND_DEFER;
+            thisf = found_forced_on(DEPEND_TRY_FORCE_DEPENDS_VERSION);
           debug(dbg_depcondetail, "      bad version");
           goto unsuitable;
         }
@@ -676,7 +691,7 @@ dependencies_ok(struct pkginfo *pkg, struct pkginfo *removing,
       if (thisf > found) found= thisf;
     }
     if (fc_depends) {
-      thisf = (dependtry >= 4) ? FOUND_FORCED : FOUND_DEFER;
+      thisf = found_forced_on(DEPEND_TRY_FORCE_DEPENDS);
       if (thisf > found) {
         found = thisf;
         debug(dbg_depcondetail, "  rescued by force-depends, found %d", found);

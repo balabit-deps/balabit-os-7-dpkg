@@ -1,3 +1,20 @@
+dpkg (1.19.0.5ubuntu2.2) bionic; urgency=medium
+
+  * Cherry-pick upstream fixes for trigger loops (LP: #1828639)
+    - dpkg: Negate tortoise_not_in_hare() function name and return value
+    - dpkg: Initialize trigcyclenode's next member once
+    - dpkg: Factor trigproc_new_cyclenode() out from check_trigger_cycle()
+    - dpkg: Mark the package we are giving up on a trigger cycle as istobe normal
+    - dpkg: Switch dependtry from an int to an enum
+    - dpkg: Reset progress_bytrigproc once we have injected into the current iteration
+    - dpkg: Split trigger processing types into required, try-queued and try-deferred
+    - dpkg: Convert one trigger processing required type into the new try-queued
+    - dpkg: Move trigproc cycle reset inside try-deferred conditional
+    - dpkg: Introduce a new dependency try level for trigger processing
+    - dpkg: Introduce a new dependency try level for trigger cycle checks
+
+ -- Julian Andres Klode <juliank@ubuntu.com>  Tue, 16 Jul 2019 14:57:11 +0200
+
 dpkg (1.19.0.5ubuntu2.1) bionic; urgency=medium
 
   * Apply patch from upstream to add frontend locking (LP: #1796081):
